@@ -1,0 +1,1272 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>选择题练习 Demo</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #20242a;
+      --muted: #6b7280;
+      --line: #d8dde6;
+      --brand: #176b87;
+      --brand-dark: #0f4f66;
+      --ok: #16794c;
+      --bad: #b42318;
+      --soft-ok: #e8f6ef;
+      --soft-bad: #fff0ed;
+      --soft-brand: #e9f5f8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", Arial, sans-serif;
+      line-height: 1.6;
+    }
+
+    .app {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 24px 0 40px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 20px 0 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(88px, 1fr));
+      gap: 10px;
+      min-width: 310px;
+    }
+
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 22px;
+      line-height: 1.25;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto;
+      gap: 12px;
+      margin-top: 16px;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .toolbar.dragging {
+      border-color: var(--brand);
+      background: var(--soft-brand);
+    }
+
+    .file-field {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .file-field input {
+      max-width: 280px;
+    }
+
+    .import-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .file-status {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .file-status.ok {
+      color: var(--ok);
+      font-weight: 700;
+    }
+
+    .file-status.bad {
+      color: var(--bad);
+      font-weight: 700;
+    }
+
+    .format-help {
+      grid-column: 1 / -1;
+      display: none;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+      color: #344054;
+      font-size: 14px;
+    }
+
+    .format-help.show {
+      display: block;
+    }
+
+    .format-help pre {
+      overflow: auto;
+      margin: 8px 0 0;
+      padding: 10px;
+      border-radius: 8px;
+      background: #f2f4f7;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .jump-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 14px 0 18px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+    }
+
+    .jump-bar input {
+      width: 120px;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font: inherit;
+    }
+
+    .jump-status {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 18px;
+      margin-top: 18px;
+      align-items: start;
+    }
+
+    .question-panel,
+    .side-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .question-panel {
+      min-height: 560px;
+      padding: 24px;
+    }
+
+    .side-panel {
+      padding: 18px;
+      position: sticky;
+      top: 16px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 18px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      border-radius: 999px;
+      padding: 3px 10px;
+      background: var(--soft-brand);
+      color: var(--brand-dark);
+      font-size: 13px;
+    }
+
+    .question-title {
+      margin: 0 0 22px;
+      font-size: 22px;
+      line-height: 1.55;
+      font-weight: 700;
+    }
+
+    .options {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .option {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      width: 100%;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      text-align: left;
+      font: inherit;
+      cursor: pointer;
+      transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+    }
+
+    .option:hover {
+      border-color: var(--brand);
+      box-shadow: 0 2px 12px rgba(23, 107, 135, .08);
+    }
+
+    .option.selected {
+      border-color: var(--brand);
+      background: var(--soft-brand);
+    }
+
+    .option.correct {
+      border-color: var(--ok);
+      background: var(--soft-ok);
+    }
+
+    .option.wrong {
+      border-color: var(--bad);
+      background: var(--soft-bad);
+    }
+
+    .letter {
+      display: inline-grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #eef1f5;
+      font-weight: 700;
+      color: #344054;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    button {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 14px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: var(--brand);
+      background: var(--brand);
+      color: #fff;
+    }
+
+    button.primary:hover { background: var(--brand-dark); }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: .55;
+    }
+
+    .feedback {
+      margin-top: 18px;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-weight: 700;
+      display: none;
+    }
+
+    .feedback.show { display: block; }
+    .feedback.ok { background: var(--soft-ok); color: var(--ok); }
+    .feedback.bad { background: var(--soft-bad); color: var(--bad); }
+    .feedback.note { background: var(--soft-brand); color: var(--brand-dark); }
+
+    .mistake-panel {
+      display: none;
+      margin-top: 12px;
+      border: 1px solid #f2b8ae;
+      border-radius: 8px;
+      padding: 14px 16px;
+      background: #fff8f6;
+    }
+
+    .mistake-panel.show {
+      display: block;
+    }
+
+    .mistake-panel h3 {
+      margin: 0 0 8px;
+      color: var(--bad);
+      font-size: 17px;
+    }
+
+    .mistake-panel p {
+      margin: 6px 0;
+    }
+
+    .side-panel h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 14px;
+      margin: 0 0 14px;
+    }
+
+    .wrong-list {
+      display: grid;
+      gap: 12px;
+      max-height: 560px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .wrong-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfcfd;
+      font-size: 14px;
+    }
+
+    .wrong-item strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .wrong-question {
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .answer-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0;
+    }
+
+    .answer-tag {
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: 13px;
+      background: #eef1f5;
+    }
+
+    .answer-tag.bad {
+      background: var(--soft-bad);
+      color: var(--bad);
+    }
+
+    .answer-tag.ok {
+      background: var(--soft-ok);
+      color: var(--ok);
+    }
+
+    .wrong-options {
+      display: grid;
+      gap: 4px;
+      margin-top: 8px;
+      color: #344054;
+    }
+
+    .wrong-option.correct {
+      color: var(--ok);
+      font-weight: 700;
+    }
+
+    .wrong-option.selected {
+      color: var(--bad);
+      font-weight: 700;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-size: 14px;
+      padding: 14px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+    }
+
+    .import-note {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+      header {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .stats {
+        min-width: 0;
+      }
+
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+
+      .import-actions {
+        justify-content: flex-start;
+      }
+
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      .side-panel {
+        position: static;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .app {
+        width: min(100% - 20px, 1180px);
+        padding-top: 10px;
+      }
+
+      h1 { font-size: 23px; }
+
+      .stats {
+        grid-template-columns: 1fr;
+      }
+
+      .question-panel {
+        padding: 16px;
+        min-height: auto;
+      }
+
+      .question-title { font-size: 19px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>选择题练习 Demo</h1>
+        <div class="subtitle">HTML 试用版：先验证答题、判分、错题显示，后续再接 Word 解析题库。</div>
+      </div>
+      <section class="stats" aria-label="练习统计">
+        <div class="stat">
+          <span>进度</span>
+          <strong id="progressText">1 / 5</strong>
+        </div>
+        <div class="stat">
+          <span>正确</span>
+          <strong id="correctText">0</strong>
+        </div>
+        <div class="stat">
+          <span>错题</span>
+          <strong id="wrongText">0</strong>
+        </div>
+      </section>
+    </header>
+
+    <section class="toolbar" id="importToolbar" aria-label="题库导入">
+      <div class="file-field">
+        <strong>导入题库 JSON</strong>
+        <input id="fileInput" type="file" accept=".json,application/json">
+      </div>
+      <div class="file-field">
+        <strong>直接导入 Word</strong>
+        <input id="wordInput" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+      </div>
+      <div class="file-field">
+        <strong>导入答案 CSV</strong>
+        <input id="answerInput" type="file" accept=".csv,text/csv">
+      </div>
+      <div class="import-actions">
+        <button id="sampleBtn" type="button">下载示例</button>
+        <button id="helpBtn" type="button">格式说明</button>
+      </div>
+      <div class="file-status" id="fileStatus">当前使用内置示例题。可以导入 JSON、Word .docx，也可以另行导入答案 CSV。</div>
+      <div class="format-help" id="formatHelp">
+        JSON 顶层必须是数组；每题需要包含 <strong>id</strong>、<strong>question</strong>、<strong>options.A/B/C/D</strong>。<strong>answer</strong> 可以是 A/B/C/D，也可以先留空。
+        <br>答案 CSV 支持表头 <strong>id,answer</strong>；如果题号重复，建议使用 <strong>source,answer</strong> 或 <strong>source,id,answer</strong>。
+        <pre>{
+  "id": 72,
+  "source": "100-2 第 72 题",
+  "question": "题干内容",
+  "options": {
+    "A": "选项A",
+    "B": "选项B",
+    "C": "选项C",
+    "D": "选项D"
+  },
+  "answer": "B"
+}</pre>
+      </div>
+    </section>
+
+    <main>
+      <section class="question-panel">
+        <div class="meta">
+          <span class="pill" id="questionId">第 72 题</span>
+          <span id="sourceText"></span>
+        </div>
+        <div class="jump-bar">
+          <strong id="totalText">共 5 题</strong>
+          <span>跳到</span>
+          <input id="jumpInput" type="number" min="1" value="1" aria-label="跳转题目序号">
+          <button id="jumpBtn" type="button">跳转</button>
+          <span class="jump-status" id="jumpStatus">输入 1 到 5 的序号</span>
+        </div>
+        <h2 class="question-title" id="questionText"></h2>
+        <ul class="options" id="options"></ul>
+        <div class="feedback" id="feedback"></div>
+        <div class="mistake-panel" id="mistakePanel"></div>
+        <div class="actions">
+          <button class="primary" id="submitBtn" type="button">判定答案</button>
+          <button id="prevBtn" type="button">上一题</button>
+          <button id="nextBtn" type="button">下一题</button>
+          <button id="resetBtn" type="button">重新练习</button>
+        </div>
+      </section>
+
+      <aside class="side-panel">
+        <h2>错题显示</h2>
+        <p class="hint">答错后会显示题干、你的答案、正确答案和全部选项。刷新后仍会保存在浏览器里。</p>
+        <div class="wrong-list" id="wrongList"></div>
+        <button id="clearWrongBtn" type="button" style="width: 100%; margin-top: 14px;">清空错题</button>
+        <p class="import-note">导入新题库后，建议先清空旧错题，避免混入上一套题。</p>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    let questions = [
+      {
+        id: 72,
+        source: "",
+        question: "應用實證醫學的方法，將有助於物理治療師提升在那些方面的臨床執業？",
+        options: {
+          A: "僅療效、預後",
+          B: "療效、預後、臨床經驗、篩檢與診斷測試",
+          C: "僅療效、預後、篩檢與診斷測試",
+          D: "僅療效"
+        },
+        answer: "B"
+      },
+      {
+        id: 73,
+        source: "100-2 第 73 题",
+        question: "下列實證醫學的步驟其先後順序為何？①尋找最佳的文獻證據 ②問一個可以回答的問題 ③應用在個案患者身上 ④對文獻進行嚴格評讀",
+        options: {
+          A: "①②③④",
+          B: "②①④③",
+          C: "①②④③",
+          D: "②①③④"
+        },
+        answer: "B"
+      },
+      {
+        id: 76,
+        source: "100-2 第 76 题",
+        question: "在實證醫學中，關於經濟分析（economic analysis），下列敘述何者錯誤？",
+        options: {
+          A: "好的經濟分析，會告訴讀者某個處置比另一個多出的成本和優點",
+          B: "由於醫療保健的資源有限，因此經濟分析中決定如何分配很重要",
+          C: "完整的經濟分析只需包含成本的資料",
+          D: "經濟分析中，成本的類型分為直接成本與間接成本"
+        },
+        answer: "C"
+      },
+      {
+        id: 79,
+        source: "100-2 第 79 题",
+        question: "某位臨床物理治療師想要知道「年齡是否影響腦中風患者功能進步量」而進行系統性文獻回顧。其中2篇文章整理自數篇具同質性回溯性世代研究的系統性文章，3篇文章為成果研究（outcomes research）。這5篇文章皆一致認為年齡並非影響腦中風患者功能進步量的因素。請問根據牛津實證醫學中心建議的證據等級，「整理自數篇具同質性回溯性世代研究的系統性文章」的證據等級為何？",
+        options: {
+          A: "1b",
+          B: "1c",
+          C: "2a",
+          D: "2b"
+        },
+        answer: "C"
+      },
+      {
+        id: 75,
+        source: "101-1 第 75 题",
+        question: "對於病患而言，「實證醫學」的重要性，下列何者錯誤？",
+        options: {
+          A: "可得到最安全的治療",
+          B: "可得到最有效的治療",
+          C: "可預期最好的預後",
+          D: "可得到最多醫療人員的照顧"
+        },
+        answer: "D"
+      }
+    ];
+
+    const state = {
+      index: 0,
+      selected: null,
+      submitted: {},
+      correctCount: 0,
+      wrongMap: loadWrongMap()
+    };
+
+    const questionId = document.querySelector("#questionId");
+    const sourceText = document.querySelector("#sourceText");
+    const questionText = document.querySelector("#questionText");
+    const optionsEl = document.querySelector("#options");
+    const feedback = document.querySelector("#feedback");
+    const mistakePanel = document.querySelector("#mistakePanel");
+    const totalText = document.querySelector("#totalText");
+    const jumpInput = document.querySelector("#jumpInput");
+    const jumpBtn = document.querySelector("#jumpBtn");
+    const jumpStatus = document.querySelector("#jumpStatus");
+    const submitBtn = document.querySelector("#submitBtn");
+    const prevBtn = document.querySelector("#prevBtn");
+    const nextBtn = document.querySelector("#nextBtn");
+    const resetBtn = document.querySelector("#resetBtn");
+    const progressText = document.querySelector("#progressText");
+    const correctText = document.querySelector("#correctText");
+    const wrongText = document.querySelector("#wrongText");
+    const wrongList = document.querySelector("#wrongList");
+    const clearWrongBtn = document.querySelector("#clearWrongBtn");
+    const fileInput = document.querySelector("#fileInput");
+    const wordInput = document.querySelector("#wordInput");
+    const answerInput = document.querySelector("#answerInput");
+    const fileStatus = document.querySelector("#fileStatus");
+    const importToolbar = document.querySelector("#importToolbar");
+    const sampleBtn = document.querySelector("#sampleBtn");
+    const helpBtn = document.querySelector("#helpBtn");
+    const formatHelp = document.querySelector("#formatHelp");
+
+    function loadWrongMap() {
+      try {
+        const saved = JSON.parse(localStorage.getItem("choicePracticeWrongMap") || "{}");
+        return saved && typeof saved === "object" ? saved : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveWrongMap() {
+      localStorage.setItem("choicePracticeWrongMap", JSON.stringify(state.wrongMap));
+    }
+
+    function currentQuestion() {
+      return questions[state.index];
+    }
+
+    function questionKey(item) {
+      return item.uid || `${item.source || "题库"}-${item.id}-${questions.indexOf(item)}`;
+    }
+
+    function normalizeQuestion(item, index) {
+      const id = item.id ?? item.number ?? index + 1;
+      const options = item.options || {};
+      return {
+        uid: item.uid || `${id}-${index + 1}`,
+        id,
+        source: item.source || "",
+        question: item.question || item.title || "",
+        options: {
+          A: options.A || options.a || "",
+          B: options.B || options.b || "",
+          C: options.C || options.c || "",
+          D: options.D || options.d || ""
+        },
+        answer: String(item.answer || "").trim().toUpperCase()
+      };
+    }
+
+    function isValidQuestion(item) {
+      const hasOptions = ["A", "B", "C", "D"].every((letter) => item.options[letter]);
+      return item.question && hasOptions && (!item.answer || ["A", "B", "C", "D"].includes(item.answer));
+    }
+
+    function validateQuestions(items) {
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new Error("JSON 顶层需要是题目数组。");
+      }
+
+      const normalized = items.map(normalizeQuestion);
+      const valid = normalized.filter(isValidQuestion);
+      return {
+        valid,
+        invalidCount: normalized.length - valid.length,
+        answerlessCount: valid.filter((item) => !item.answer).length,
+        totalCount: normalized.length
+      };
+    }
+
+    function renderQuestion() {
+      const item = currentQuestion();
+      const key = questionKey(item);
+      state.selected = state.submitted[key]?.selected || null;
+      const result = state.submitted[key];
+
+      questionId.textContent = `第 ${state.index + 1} / ${questions.length} 题`;
+      sourceText.textContent = item.source
+        ? `来源：${item.source}；原题号：第 ${item.id} 题`
+        : `来源：未填写；原题号：第 ${item.id} 题`;
+      questionText.textContent = item.question;
+      progressText.textContent = `${state.index + 1} / ${questions.length}`;
+      totalText.textContent = `共 ${questions.length} 题`;
+      jumpInput.max = String(questions.length);
+      jumpInput.value = String(state.index + 1);
+      jumpStatus.textContent = `当前第 ${state.index + 1} 题，输入 1 到 ${questions.length} 的序号`;
+      prevBtn.disabled = state.index === 0;
+      nextBtn.disabled = state.index === questions.length - 1;
+      submitBtn.disabled = Boolean(result);
+      submitBtn.textContent = result ? (result.correct === null ? "已记录" : "已判定") : "判定答案";
+
+      optionsEl.innerHTML = "";
+      Object.entries(item.options).forEach(([letter, text]) => {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = "option";
+        option.dataset.letter = letter;
+        option.innerHTML = `<span class="letter">${letter}</span><span>${escapeHtml(text)}</span>`;
+        option.addEventListener("click", () => chooseOption(letter));
+
+        if (state.selected === letter) option.classList.add("selected");
+        if (result && letter === item.answer) option.classList.add("correct");
+        if (result && result.selected === letter && letter !== item.answer) option.classList.add("wrong");
+        optionsEl.appendChild(option);
+      });
+
+      renderFeedback();
+      renderStats();
+      renderWrongList();
+    }
+
+    function chooseOption(letter) {
+      const item = currentQuestion();
+      if (state.submitted[questionKey(item)]) return;
+      state.selected = letter;
+      document.querySelectorAll(".option").forEach((option) => {
+        option.classList.toggle("selected", option.dataset.letter === letter);
+      });
+      judgeCurrentAnswer();
+    }
+
+    function submitAnswer() {
+      judgeCurrentAnswer();
+    }
+
+    function judgeCurrentAnswer() {
+      const item = currentQuestion();
+      const key = questionKey(item);
+      if (state.submitted[key]) return;
+
+      if (!state.selected) {
+        feedback.className = "feedback show bad";
+        feedback.textContent = "请先选择一个答案。点选项后会自动判定。";
+        mistakePanel.className = "mistake-panel";
+        mistakePanel.innerHTML = "";
+        return;
+      }
+
+      const hasAnswer = ["A", "B", "C", "D"].includes(item.answer);
+      const isCorrect = hasAnswer ? state.selected === item.answer : null;
+      state.submitted[key] = {
+        selected: state.selected,
+        correct: isCorrect
+      };
+
+      if (isCorrect === true) {
+        state.correctCount += 1;
+        delete state.wrongMap[key];
+        saveWrongMap();
+      } else if (isCorrect === false) {
+        state.wrongMap[key] = {
+          id: item.id,
+          displayIndex: state.index + 1,
+          total: questions.length,
+          source: item.source,
+          question: item.question,
+          options: item.options,
+          selected: state.selected,
+          answer: item.answer
+        };
+        saveWrongMap();
+      }
+
+      applySubmittedState(item, state.submitted[key]);
+      renderFeedback();
+      renderStats();
+      renderWrongList();
+    }
+
+    function applySubmittedState(item, result) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = result.correct === null ? "已记录" : "已判定";
+
+      document.querySelectorAll(".option").forEach((option) => {
+        const letter = option.dataset.letter;
+        option.classList.toggle("selected", result.selected === letter);
+        option.classList.toggle("correct", result.correct !== null && item.answer === letter);
+        option.classList.toggle("wrong", result.correct !== null && result.selected === letter && item.answer !== letter);
+      });
+    }
+
+    function renderFeedback() {
+      const item = currentQuestion();
+      const result = state.submitted[questionKey(item)];
+      feedback.className = "feedback";
+      feedback.textContent = "";
+      mistakePanel.className = "mistake-panel";
+      mistakePanel.innerHTML = "";
+
+      if (!result) return;
+
+      if (result.correct === null) {
+        feedback.classList.add("show", "note");
+        feedback.textContent = `已记录选择：${result.selected}。本题暂无答案，暂不判定对错。`;
+        return;
+      }
+
+      feedback.classList.add("show", result.correct ? "ok" : "bad");
+      feedback.textContent = result.correct
+        ? `回答正确：${item.answer}`
+        : `回答错误：你选了 ${result.selected}，正确答案是 ${item.answer}`;
+
+      if (!result.correct) {
+        const selectedText = item.options[result.selected] || "";
+        const correctTextValue = item.options[item.answer] || "";
+        mistakePanel.classList.add("show");
+        mistakePanel.innerHTML = `
+          <h3>本题错误</h3>
+          <p>你的答案：<strong>${escapeHtml(result.selected)}</strong> ${escapeHtml(selectedText)}</p>
+          <p>正确答案：<strong>${escapeHtml(item.answer)}</strong> ${escapeHtml(correctTextValue)}</p>
+        `;
+      }
+    }
+
+    function renderStats() {
+      correctText.textContent = String(state.correctCount);
+      wrongText.textContent = String(Object.keys(state.wrongMap).length);
+    }
+
+    function renderWrongList() {
+      const wrongItems = Object.values(state.wrongMap);
+      wrongList.innerHTML = "";
+
+      if (wrongItems.length === 0) {
+        wrongList.innerHTML = `<div class="empty">还没有错题。答错后这里会显示完整错题。</div>`;
+        return;
+      }
+
+      const visibleWrongItems = wrongItems.slice(-30).reverse();
+      if (wrongItems.length > visibleWrongItems.length) {
+        const note = document.createElement("div");
+        note.className = "empty";
+        note.textContent = `当前共有 ${wrongItems.length} 道错题，这里先显示最近 ${visibleWrongItems.length} 道，避免页面变慢。`;
+        wrongList.appendChild(note);
+      }
+
+      visibleWrongItems.forEach((item) => {
+        const div = document.createElement("div");
+        div.className = "wrong-item";
+        const optionsHtml = Object.entries(item.options || {}).map(([letter, text]) => {
+          const classes = [
+            "wrong-option",
+            letter === item.answer ? "correct" : "",
+            letter === item.selected && letter !== item.answer ? "selected" : ""
+          ].filter(Boolean).join(" ");
+          return `<div class="${classes}">${letter}. ${escapeHtml(text)}</div>`;
+        }).join("");
+
+        div.innerHTML = `
+          <strong>第 ${item.displayIndex || item.id}${item.total ? ` / ${item.total}` : ""} 题${item.source ? ` ｜${escapeHtml(item.source)}` : ""}</strong>
+          <div class="wrong-question">${escapeHtml(item.question)}</div>
+          <div class="answer-row">
+            <span class="answer-tag bad">你的答案：${escapeHtml(item.selected)}</span>
+            <span class="answer-tag ok">正确答案：${escapeHtml(item.answer)}</span>
+          </div>
+          <div class="wrong-options">${optionsHtml}</div>
+        `;
+        wrongList.appendChild(div);
+      });
+    }
+
+    function resetPractice(startIndex = 0) {
+      const numericIndex = Number.isInteger(startIndex) ? startIndex : 0;
+      state.index = Math.max(0, Math.min(numericIndex, questions.length - 1));
+      state.selected = null;
+      state.submitted = {};
+      state.correctCount = 0;
+      renderQuestion();
+    }
+
+    function clearWrongQuestions() {
+      state.wrongMap = {};
+      saveWrongMap();
+      renderStats();
+      renderWrongList();
+    }
+
+    function jumpToQuestion() {
+      const target = Number.parseInt(jumpInput.value, 10);
+      if (!Number.isInteger(target) || target < 1 || target > questions.length) {
+        jumpStatus.textContent = `请输入 1 到 ${questions.length} 之间的数字。`;
+        return;
+      }
+
+      state.index = target - 1;
+      state.selected = null;
+      renderQuestion();
+    }
+
+    function setFileStatus(message, type = "") {
+      fileStatus.className = `file-status ${type}`.trim();
+      fileStatus.textContent = message;
+    }
+
+    function resetWrongQuestions() {
+      state.wrongMap = {};
+      saveWrongMap();
+    }
+
+    function importQuestions(event) {
+      const file = event.target.files[0];
+      importQuestionFile(file);
+    }
+
+    function parseCsvLine(line) {
+      const cells = [];
+      let value = "";
+      let quoted = false;
+
+      for (let index = 0; index < line.length; index += 1) {
+        const char = line[index];
+        const next = line[index + 1];
+
+        if (char === '"' && quoted && next === '"') {
+          value += '"';
+          index += 1;
+        } else if (char === '"') {
+          quoted = !quoted;
+        } else if (char === "," && !quoted) {
+          cells.push(value.trim());
+          value = "";
+        } else {
+          value += char;
+        }
+      }
+      cells.push(value.trim());
+      return cells;
+    }
+
+    function parseAnswerCsv(text) {
+      const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      if (lines.length < 2) {
+        throw new Error("CSV 至少需要表头和一行答案。");
+      }
+
+      let headers = parseCsvLine(lines[0]).map(normalizeHeader);
+      let dataLines = lines.slice(1);
+      if (!headers.includes("answer")) {
+        const firstCells = parseCsvLine(lines[0]);
+        const looksHeaderless = firstCells.length >= 2 && ["A", "B", "C", "D"].includes(String(firstCells[1] || "").trim().toUpperCase());
+        if (!looksHeaderless) {
+          throw new Error("答案 CSV 表头需要 answer，并至少包含 id 或 source。");
+        }
+        headers = ["id", "answer"];
+        dataLines = lines;
+      }
+
+      const answerIndex = headers.indexOf("answer");
+      const idIndex = headers.indexOf("id");
+      const sourceIndex = headers.indexOf("source");
+
+      if (answerIndex === -1 || (idIndex === -1 && sourceIndex === -1)) {
+        throw new Error("答案 CSV 表头需要 answer，并至少包含 id 或 source。");
+      }
+
+      return dataLines.map((line) => {
+        const cells = parseCsvLine(line);
+        const rawId = idIndex >= 0 ? cells[idIndex] : "";
+        const rawSource = sourceIndex >= 0 ? cells[sourceIndex] : "";
+        const parsedRef = parseQuestionRef(rawId);
+        return {
+          id: parsedRef.id || rawId,
+          source: rawSource || parsedRef.source,
+          answer: String(cells[answerIndex] || "").trim().toUpperCase()
+        };
+      }).filter((row) => ["A", "B", "C", "D"].includes(row.answer));
+    }
+
+    function parseQuestionRef(value) {
+      const text = normalizeText(value);
+      const composite = text.match(/^(\d{2,3}\s*[-－]\s*\d)\s*[-－]\s*(\d{1,4})$/);
+      if (composite) {
+        return {
+          source: composite[1].replace(/\s+/g, "").replace("－", "-"),
+          id: composite[2]
+        };
+      }
+
+      const sourceQuestion = text.match(/(\d{2,3}\s*[-－]\s*\d).*?(\d{1,4})\s*[题題]?$/);
+      if (sourceQuestion) {
+        return {
+          source: sourceQuestion[1].replace(/\s+/g, "").replace("－", "-"),
+          id: sourceQuestion[2]
+        };
+      }
+
+      return { source: "", id: "" };
+    }
+
+    function normalizeHeader(header) {
+      const value = String(header || "").trim().toLowerCase();
+      if (["id", "题号", "題號", "编号", "編號", "number"].includes(value)) return "id";
+      if (["source", "来源", "來源", "出处", "出處"].includes(value)) return "source";
+      if (["answer", "答案", "正确答案", "正確答案"].includes(value)) return "answer";
+      return value;
+    }
+
+    function importAnswers(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setFileStatus("答案导入失败：请选择 .csv 文件。", "bad");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const rows = parseAnswerCsv(reader.result);
+          const result = applyAnswers(rows);
+          resetWrongQuestions();
+          resetPractice(result.firstMatchedIndex);
+          const answered = questions.filter((item) => item.answer).length;
+          const jump = result.firstMatchedIndex >= 0 ? `已跳到第 ${result.firstMatchedIndex + 1} 题查看匹配效果。` : "";
+          setFileStatus(`已导入答案：${file.name}。匹配 ${result.matched} 题，当前题库已有答案 ${answered}/${questions.length} 题，未匹配 ${result.unmatched} 行。${jump}`, result.matched > 0 ? "ok" : "bad");
+        } catch (error) {
+          setFileStatus(`答案导入失败：${error.message}`, "bad");
+        }
+      };
+      reader.onerror = () => setFileStatus("答案导入失败：文件读取失败。", "bad");
+      reader.readAsText(file, "utf-8");
+    }
+
+    function applyAnswers(rows) {
+      let matched = 0;
+      let unmatched = 0;
+      let firstMatchedIndex = -1;
+      const usedKeys = new Set();
+
+      rows.forEach((row) => {
+        const candidates = questions.filter((item) => {
+          const itemRef = parseQuestionRef(item.source);
+          const rowRef = parseQuestionRef(row.source);
+          const rowSource = normalizeText(rowRef.source || row.source);
+          const itemSource = normalizeText(itemRef.source || item.source);
+          const sourceMatches = rowSource && (itemSource === rowSource || normalizeText(item.source).includes(rowSource));
+          const idMatches = row.id && String(item.id) === String(row.id);
+          return row.source ? sourceMatches && (!row.id || idMatches) : idMatches;
+        });
+
+        const target = candidates.find((item) => !usedKeys.has(questionKey(item)));
+        if (target) {
+          target.answer = row.answer;
+          usedKeys.add(questionKey(target));
+          matched += 1;
+          const targetIndex = questions.indexOf(target);
+          if (firstMatchedIndex === -1 || targetIndex < firstMatchedIndex) {
+            firstMatchedIndex = targetIndex;
+          }
+        } else {
+          unmatched += 1;
+        }
+      });
+
+      return { matched, unmatched, firstMatchedIndex };
+    }
+
+    function normalizeText(value) {
+      return String(value || "").replace(/\s+/g, " ").trim();
+    }
+
+    async function importWord(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith(".docx")) {
+        setFileStatus("导入失败：请选择 .docx Word 文件。", "bad");
+        return;
+      }
+
+      setFileStatus(`正在解析 Word：${file.name} ...`);
+      const formData = new FormData();
+      formData.append("docx", file);
+
+      try {
+        const response = await fetch("/api/convert-word", {
+          method: "POST",
+          body: formData
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "Word 解析失败。");
+        }
+
+        const result = validateQuestions(payload.questions);
+        if (result.valid.length === 0) {
+          throw new Error("没有找到有效题目。");
+        }
+
+        questions = result.valid;
+        resetWrongQuestions();
+        resetPractice();
+        const answerless = result.answerlessCount > 0 ? `，其中 ${result.answerlessCount} 题暂无答案` : "";
+        const skipped = result.invalidCount > 0 ? `，跳过 ${result.invalidCount} 道格式不完整题目` : "";
+        setFileStatus(`已导入 Word：${payload.filename}。有效 ${questions.length} 题${answerless}${skipped}。`, "ok");
+      } catch (error) {
+        setFileStatus(`导入失败：${error.message}`, "bad");
+      }
+    }
+
+    function importQuestionFile(file) {
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith(".json")) {
+        setFileStatus("导入失败：请选择 .json 题库文件。", "bad");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const result = validateQuestions(JSON.parse(reader.result));
+          if (result.valid.length === 0) {
+            throw new Error("没有找到有效题目。");
+          }
+          questions = result.valid;
+          resetWrongQuestions();
+          resetPractice();
+          const skipped = result.invalidCount > 0 ? `，跳过 ${result.invalidCount} 道格式不完整题目` : "";
+          const answerless = result.answerlessCount > 0 ? `，其中 ${result.answerlessCount} 题暂无答案` : "";
+          setFileStatus(`已导入：${file.name}。有效 ${questions.length} 题${answerless}${skipped}。`, "ok");
+        } catch (error) {
+          setFileStatus(`导入失败：${error.message}`, "bad");
+        }
+      };
+      reader.onerror = () => setFileStatus("导入失败：文件读取失败。", "bad");
+      reader.readAsText(file, "utf-8");
+    }
+
+    function downloadSampleJson() {
+      const blob = new Blob([JSON.stringify(questions, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "questions_sample.json";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    submitBtn.addEventListener("click", submitAnswer);
+    prevBtn.addEventListener("click", () => {
+      state.index = Math.max(0, state.index - 1);
+      renderQuestion();
+    });
+    nextBtn.addEventListener("click", () => {
+      state.index = Math.min(questions.length - 1, state.index + 1);
+      renderQuestion();
+    });
+    resetBtn.addEventListener("click", () => resetPractice());
+    jumpBtn.addEventListener("click", jumpToQuestion);
+    jumpInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") jumpToQuestion();
+    });
+    clearWrongBtn.addEventListener("click", clearWrongQuestions);
+    fileInput.addEventListener("change", importQuestions);
+    wordInput.addEventListener("change", importWord);
+    answerInput.addEventListener("change", importAnswers);
+    sampleBtn.addEventListener("click", downloadSampleJson);
+    helpBtn.addEventListener("click", () => {
+      formatHelp.classList.toggle("show");
+    });
+    importToolbar.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      importToolbar.classList.add("dragging");
+    });
+    importToolbar.addEventListener("dragleave", () => {
+      importToolbar.classList.remove("dragging");
+    });
+    importToolbar.addEventListener("drop", (event) => {
+      event.preventDefault();
+      importToolbar.classList.remove("dragging");
+      importQuestionFile(event.dataTransfer.files[0]);
+    });
+
+    renderQuestion();
+  </script>
+</body>
+</html>
