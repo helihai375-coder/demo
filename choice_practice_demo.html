@@ -134,6 +134,30 @@
       font-weight: 700;
     }
 
+    .match-detail {
+      grid-column: 1 / -1;
+      display: none;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfcfd;
+      color: #344054;
+      font-size: 14px;
+    }
+
+    .match-detail.show {
+      display: block;
+    }
+
+    .match-detail strong {
+      color: var(--text);
+    }
+
+    .match-detail ul {
+      margin: 8px 0 0;
+      padding-left: 20px;
+    }
+
     .format-help {
       grid-column: 1 / -1;
       display: none;
@@ -181,6 +205,28 @@
     .jump-status {
       color: var(--muted);
       font-size: 14px;
+    }
+
+    .mode-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .mode-bar strong {
+      margin-right: 4px;
+    }
+
+    .mode-btn.active {
+      border-color: var(--brand);
+      background: var(--brand);
+      color: #fff;
     }
 
     main {
@@ -380,6 +426,38 @@
       padding-right: 4px;
     }
 
+    .study-panel {
+      margin-bottom: 18px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .study-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .study-stat {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 10px;
+      background: #fbfcfd;
+    }
+
+    .study-stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .study-stat strong {
+      display: block;
+      font-size: 19px;
+      line-height: 1.25;
+    }
+
     .wrong-item {
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -543,6 +621,7 @@
         <button id="helpBtn" type="button">格式说明</button>
       </div>
       <div class="file-status" id="fileStatus">当前使用内置示例题。可以导入 JSON、Word .docx，也可以另行导入答案 CSV。</div>
+      <div class="match-detail" id="matchDetail"></div>
       <div class="format-help" id="formatHelp">
         JSON 顶层必须是数组；每题需要包含 <strong>id</strong>、<strong>question</strong>、<strong>options.A/B/C/D</strong>。<strong>answer</strong> 可以是 A/B/C/D，也可以先留空。
         <br>答案 CSV 支持表头 <strong>id,answer</strong>；如果题号重复，建议使用 <strong>source,answer</strong> 或 <strong>source,id,answer</strong>。
@@ -559,6 +638,15 @@
   "answer": "B"
 }</pre>
       </div>
+    </section>
+
+    <section class="mode-bar" aria-label="练习模式">
+      <strong>练习模式</strong>
+      <button class="mode-btn active" id="sequenceModeBtn" type="button">顺序练习</button>
+      <button class="mode-btn" id="randomModeBtn" type="button">随机练习</button>
+      <button class="mode-btn" id="wrongModeBtn" type="button">错题练习</button>
+      <button class="mode-btn" id="todoModeBtn" type="button">未做题练习</button>
+      <span class="jump-status" id="modeStatus">当前为顺序练习</span>
     </section>
 
     <main>
@@ -587,6 +675,44 @@
       </section>
 
       <aside class="side-panel">
+        <section class="study-panel">
+          <h2>学习统计</h2>
+          <p class="hint">统计当前练习模式中的作答情况。</p>
+          <div class="study-grid">
+            <div class="study-stat">
+              <span>总题数</span>
+              <strong id="statTotal">0</strong>
+            </div>
+            <div class="study-stat">
+              <span>已做</span>
+              <strong id="statDone">0</strong>
+            </div>
+            <div class="study-stat">
+              <span>未做</span>
+              <strong id="statTodo">0</strong>
+            </div>
+            <div class="study-stat">
+              <span>正确</span>
+              <strong id="statCorrect">0</strong>
+            </div>
+            <div class="study-stat">
+              <span>错误</span>
+              <strong id="statWrong">0</strong>
+            </div>
+            <div class="study-stat">
+              <span>正确率</span>
+              <strong id="statAccuracy">0%</strong>
+            </div>
+            <div class="study-stat">
+              <span>无答案</span>
+              <strong id="statNoAnswer">0</strong>
+            </div>
+            <div class="study-stat">
+              <span>仅记录</span>
+              <strong id="statUndecided">0</strong>
+            </div>
+          </div>
+        </section>
         <h2>错题显示</h2>
         <p class="hint">答错后会显示题干、你的答案、正确答案和全部选项。刷新后仍会保存在浏览器里。</p>
         <div class="wrong-list" id="wrongList"></div>
@@ -660,12 +786,17 @@
       }
     ];
 
+    let allQuestions = questions;
+
     const state = {
       index: 0,
       selected: null,
       submitted: {},
       correctCount: 0,
-      wrongMap: loadWrongMap()
+      wrongMap: loadWrongMap(),
+      wrongListDirty: true,
+      saveWrongTimer: null,
+      mode: "sequence"
     };
 
     const questionId = document.querySelector("#questionId");
@@ -678,6 +809,11 @@
     const jumpInput = document.querySelector("#jumpInput");
     const jumpBtn = document.querySelector("#jumpBtn");
     const jumpStatus = document.querySelector("#jumpStatus");
+    const sequenceModeBtn = document.querySelector("#sequenceModeBtn");
+    const randomModeBtn = document.querySelector("#randomModeBtn");
+    const wrongModeBtn = document.querySelector("#wrongModeBtn");
+    const todoModeBtn = document.querySelector("#todoModeBtn");
+    const modeStatus = document.querySelector("#modeStatus");
     const submitBtn = document.querySelector("#submitBtn");
     const prevBtn = document.querySelector("#prevBtn");
     const nextBtn = document.querySelector("#nextBtn");
@@ -686,6 +822,14 @@
     const correctText = document.querySelector("#correctText");
     const wrongText = document.querySelector("#wrongText");
     const wrongList = document.querySelector("#wrongList");
+    const statTotal = document.querySelector("#statTotal");
+    const statDone = document.querySelector("#statDone");
+    const statTodo = document.querySelector("#statTodo");
+    const statCorrect = document.querySelector("#statCorrect");
+    const statWrong = document.querySelector("#statWrong");
+    const statAccuracy = document.querySelector("#statAccuracy");
+    const statNoAnswer = document.querySelector("#statNoAnswer");
+    const statUndecided = document.querySelector("#statUndecided");
     const clearWrongBtn = document.querySelector("#clearWrongBtn");
     const fileInput = document.querySelector("#fileInput");
     const wordInput = document.querySelector("#wordInput");
@@ -695,6 +839,7 @@
     const sampleBtn = document.querySelector("#sampleBtn");
     const helpBtn = document.querySelector("#helpBtn");
     const formatHelp = document.querySelector("#formatHelp");
+    const matchDetail = document.querySelector("#matchDetail");
 
     function loadWrongMap() {
       try {
@@ -709,19 +854,129 @@
       localStorage.setItem("choicePracticeWrongMap", JSON.stringify(state.wrongMap));
     }
 
+    function scheduleWrongMapSave() {
+      if (state.saveWrongTimer) {
+        clearTimeout(state.saveWrongTimer);
+      }
+      state.saveWrongTimer = setTimeout(() => {
+        saveWrongMap();
+        state.saveWrongTimer = null;
+      }, 250);
+    }
+
+    function markWrongListDirty() {
+      state.wrongListDirty = true;
+    }
+
     function currentQuestion() {
       return questions[state.index];
     }
 
+    function hashString(value) {
+      let hash = 0;
+      const text = String(value || "");
+      for (let index = 0; index < text.length; index += 1) {
+        hash = ((hash << 5) - hash) + text.charCodeAt(index);
+        hash |= 0;
+      }
+      return Math.abs(hash).toString(36);
+    }
+
+    function normalizeUidPart(value) {
+      return normalizeText(value).toLowerCase();
+    }
+
+    function makeQuestionUid(item, index = 0) {
+      const options = item.options || {};
+      const optionText = ["A", "B", "C", "D"].map((letter) => normalizeUidPart(options[letter])).join("|");
+      const base = [
+        normalizeUidPart(item.source),
+        normalizeUidPart(item.id),
+        normalizeUidPart(item.question),
+        optionText
+      ].join("|");
+      return `q-${normalizeUidPart(item.source || "题库").replace(/[^a-z0-9\u4e00-\u9fa5]+/gi, "-")}-${item.id || index + 1}-${hashString(base)}`;
+    }
+
     function questionKey(item) {
-      return item.uid || `${item.source || "题库"}-${item.id}-${questions.indexOf(item)}`;
+      if (!item.uid) {
+        const baseIndex = allQuestions.indexOf(item);
+        item.uid = makeQuestionUid(item, baseIndex >= 0 ? baseIndex : 0);
+      }
+      return item.uid;
+    }
+
+    function setPracticeMode(mode, nextQuestions, message) {
+      if (!nextQuestions.length) {
+        setFileStatus("当前没有可练习的题目。", "bad");
+        return;
+      }
+
+      state.mode = mode;
+      questions = nextQuestions;
+      state.submitted = {};
+      state.correctCount = 0;
+      resetPractice();
+      updateModeButtons();
+      if (message) setFileStatus(message, "ok");
+    }
+
+    function updateModeButtons() {
+      sequenceModeBtn.classList.toggle("active", state.mode === "sequence");
+      randomModeBtn.classList.toggle("active", state.mode === "random");
+      wrongModeBtn.classList.toggle("active", state.mode === "wrong");
+      todoModeBtn.classList.toggle("active", state.mode === "todo");
+      const names = {
+        sequence: "顺序练习",
+        random: "随机练习",
+        wrong: "错题练习",
+        todo: "未做题练习"
+      };
+      modeStatus.textContent = `当前为${names[state.mode]}，共 ${questions.length} 题`;
+    }
+
+    function startSequencePractice() {
+      setPracticeMode("sequence", allQuestions, `已切换到顺序练习，共 ${allQuestions.length} 题。`);
+    }
+
+    function startRandomPractice() {
+      setPracticeMode("random", shuffleQuestions(allQuestions), `已切换到随机练习，共 ${allQuestions.length} 题。`);
+    }
+
+    function startWrongPractice() {
+      const wrongQuestions = Object.values(state.wrongMap).map((item, index) => ({
+        ...item,
+        uid: item.uid || `wrong-${item.source || "题库"}-${item.id}-${index}`
+      }));
+      if (!wrongQuestions.length) {
+        setFileStatus("当前没有错题，先答错几题后再进入错题练习。", "bad");
+        return;
+      }
+      setPracticeMode("wrong", wrongQuestions, `已切换到错题练习，共 ${wrongQuestions.length} 题。`);
+    }
+
+    function startTodoPractice() {
+      const todoQuestions = allQuestions.filter((item) => !state.submitted[questionKey(item)]);
+      if (!todoQuestions.length) {
+        setFileStatus("当前没有未做题。", "bad");
+        return;
+      }
+      setPracticeMode("todo", todoQuestions, `已切换到未做题练习，共 ${todoQuestions.length} 题。`);
+    }
+
+    function shuffleQuestions(items) {
+      const copy = [...items];
+      for (let index = copy.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+        [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
+      }
+      return copy;
     }
 
     function normalizeQuestion(item, index) {
       const id = item.id ?? item.number ?? index + 1;
       const options = item.options || {};
-      return {
-        uid: item.uid || `${id}-${index + 1}`,
+      const normalized = {
         id,
         source: item.source || "",
         question: item.question || item.title || "",
@@ -733,6 +988,8 @@
         },
         answer: String(item.answer || "").trim().toUpperCase()
       };
+      normalized.uid = item.uid || makeQuestionUid(normalized, index);
+      return normalized;
     }
 
     function isValidQuestion(item) {
@@ -793,7 +1050,7 @@
 
       renderFeedback();
       renderStats();
-      renderWrongList();
+      renderWrongListIfDirty();
     }
 
     function chooseOption(letter) {
@@ -833,9 +1090,11 @@
       if (isCorrect === true) {
         state.correctCount += 1;
         delete state.wrongMap[key];
-        saveWrongMap();
+        markWrongListDirty();
+        scheduleWrongMapSave();
       } else if (isCorrect === false) {
         state.wrongMap[key] = {
+          uid: key,
           id: item.id,
           displayIndex: state.index + 1,
           total: questions.length,
@@ -845,13 +1104,14 @@
           selected: state.selected,
           answer: item.answer
         };
-        saveWrongMap();
+        markWrongListDirty();
+        scheduleWrongMapSave();
       }
 
       applySubmittedState(item, state.submitted[key]);
       renderFeedback();
       renderStats();
-      renderWrongList();
+      renderWrongListIfDirty();
     }
 
     function applySubmittedState(item, result) {
@@ -900,11 +1160,49 @@
     }
 
     function renderStats() {
-      correctText.textContent = String(state.correctCount);
+      const stats = getStudyStats();
+      correctText.textContent = String(stats.correct);
       wrongText.textContent = String(Object.keys(state.wrongMap).length);
+      renderStudyStats(stats);
+    }
+
+    function getStudyStats() {
+      const total = questions.length;
+      const submittedItems = Object.values(state.submitted);
+      const done = submittedItems.length;
+      const correct = submittedItems.filter((item) => item.correct === true).length;
+      const wrong = submittedItems.filter((item) => item.correct === false).length;
+      const undecided = submittedItems.filter((item) => item.correct === null).length;
+      const noAnswer = questions.filter((item) => !item.answer).length;
+      const todo = Math.max(0, total - done);
+      const judged = correct + wrong;
+      const accuracy = judged > 0 ? Math.round((correct / judged) * 1000) / 10 : 0;
+
+      return {
+        total,
+        done,
+        todo,
+        correct,
+        wrong,
+        undecided,
+        noAnswer,
+        accuracy
+      };
+    }
+
+    function renderStudyStats(stats = getStudyStats()) {
+      statTotal.textContent = String(stats.total);
+      statDone.textContent = String(stats.done);
+      statTodo.textContent = String(stats.todo);
+      statCorrect.textContent = String(stats.correct);
+      statWrong.textContent = String(stats.wrong);
+      statAccuracy.textContent = `${stats.accuracy}%`;
+      statNoAnswer.textContent = String(stats.noAnswer);
+      statUndecided.textContent = String(stats.undecided);
     }
 
     function renderWrongList() {
+      state.wrongListDirty = false;
       const wrongItems = Object.values(state.wrongMap);
       wrongList.innerHTML = "";
 
@@ -946,6 +1244,12 @@
       });
     }
 
+    function renderWrongListIfDirty() {
+      if (state.wrongListDirty) {
+        renderWrongList();
+      }
+    }
+
     function resetPractice(startIndex = 0) {
       const numericIndex = Number.isInteger(startIndex) ? startIndex : 0;
       state.index = Math.max(0, Math.min(numericIndex, questions.length - 1));
@@ -953,13 +1257,22 @@
       state.submitted = {};
       state.correctCount = 0;
       renderQuestion();
+      updateModeButtons();
     }
 
     function clearWrongQuestions() {
       state.wrongMap = {};
-      saveWrongMap();
+      markWrongListDirty();
+      scheduleWrongMapSave();
+      if (state.mode === "wrong") {
+        state.mode = "sequence";
+        questions = allQuestions;
+        resetPractice();
+        setFileStatus("已清空错题，并切回顺序练习。", "ok");
+        return;
+      }
       renderStats();
-      renderWrongList();
+      renderWrongListIfDirty();
     }
 
     function jumpToQuestion() {
@@ -981,7 +1294,8 @@
 
     function resetWrongQuestions() {
       state.wrongMap = {};
-      saveWrongMap();
+      markWrongListDirty();
+      scheduleWrongMapSave();
     }
 
     function importQuestions(event) {
@@ -1040,17 +1354,34 @@
         throw new Error("答案 CSV 表头需要 answer，并至少包含 id 或 source。");
       }
 
-      return dataLines.map((line) => {
+      const rows = [];
+      const invalidRows = [];
+
+      dataLines.forEach((line, index) => {
         const cells = parseCsvLine(line);
         const rawId = idIndex >= 0 ? cells[idIndex] : "";
         const rawSource = sourceIndex >= 0 ? cells[sourceIndex] : "";
         const parsedRef = parseQuestionRef(rawId);
-        return {
+        const row = {
+          lineNumber: index + 1 + (dataLines === lines ? 0 : 1),
+          raw: line,
           id: parsedRef.id || rawId,
           source: rawSource || parsedRef.source,
           answer: String(cells[answerIndex] || "").trim().toUpperCase()
         };
-      }).filter((row) => ["A", "B", "C", "D"].includes(row.answer));
+
+        if (!["A", "B", "C", "D"].includes(row.answer)) {
+          invalidRows.push({ ...row, reason: "答案不是 A/B/C/D" });
+          return;
+        }
+        if (!row.id && !row.source) {
+          invalidRows.push({ ...row, reason: "缺少题号或来源" });
+          return;
+        }
+        rows.push(row);
+      });
+
+      return { rows, invalidRows };
     }
 
     function parseQuestionRef(value) {
@@ -1082,6 +1413,47 @@
       return value;
     }
 
+    function renderMatchDetail(result) {
+      if (!matchDetail) return;
+
+      if (!result) {
+        matchDetail.className = "match-detail";
+        matchDetail.innerHTML = "";
+        return;
+      }
+
+      const examples = [];
+      const appendExamples = (title, items, formatter) => {
+        if (!items.length) return;
+        examples.push(`<strong>${title}</strong>`);
+        examples.push("<ul>");
+        items.slice(0, 8).forEach((item) => {
+          examples.push(`<li>${formatter(item)}</li>`);
+        });
+        if (items.length > 8) {
+          examples.push(`<li>还有 ${items.length - 8} 行未显示</li>`);
+        }
+        examples.push("</ul>");
+      };
+
+      appendExamples("未匹配示例", result.unmatchedRows, (row) =>
+        `第 ${row.lineNumber} 行：${escapeHtml(row.source || row.id || row.raw)}，答案 ${escapeHtml(row.answer)}`
+      );
+      appendExamples("重复候选示例", result.duplicateRows, (row) =>
+        `第 ${row.lineNumber} 行：${escapeHtml(row.source || row.id || row.raw)} 找到 ${row.count} 道候选题`
+      );
+      appendExamples("格式错误示例", result.invalidRows, (row) =>
+        `第 ${row.lineNumber} 行：${escapeHtml(row.reason)}，${escapeHtml(row.raw)}`
+      );
+
+      matchDetail.className = "match-detail show";
+      matchDetail.innerHTML = `
+        <strong>答案匹配明细</strong>
+        <div>已匹配：${result.matched} ｜ 未匹配：${result.unmatched} ｜ 重复候选：${result.duplicate} ｜ 格式错误：${result.invalid}</div>
+        ${examples.join("")}
+      `;
+    }
+
     function importAnswers(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -1093,29 +1465,37 @@
       const reader = new FileReader();
       reader.onload = () => {
         try {
-          const rows = parseAnswerCsv(reader.result);
-          const result = applyAnswers(rows);
+          const parsed = parseAnswerCsv(reader.result);
+          const result = applyAnswers(parsed.rows, parsed.invalidRows);
           resetWrongQuestions();
+          state.mode = "sequence";
+          questions = allQuestions;
           resetPractice(result.firstMatchedIndex);
-          const answered = questions.filter((item) => item.answer).length;
+          const answered = allQuestions.filter((item) => item.answer).length;
           const jump = result.firstMatchedIndex >= 0 ? `已跳到第 ${result.firstMatchedIndex + 1} 题查看匹配效果。` : "";
-          setFileStatus(`已导入答案：${file.name}。匹配 ${result.matched} 题，当前题库已有答案 ${answered}/${questions.length} 题，未匹配 ${result.unmatched} 行。${jump}`, result.matched > 0 ? "ok" : "bad");
+          setFileStatus(`已导入答案：${file.name}。匹配 ${result.matched} 题，当前题库已有答案 ${answered}/${allQuestions.length} 题，未匹配 ${result.unmatched} 行，重复候选 ${result.duplicate} 行，格式错误 ${result.invalid} 行。${jump}`, result.matched > 0 ? "ok" : "bad");
+          renderMatchDetail(result);
         } catch (error) {
           setFileStatus(`答案导入失败：${error.message}`, "bad");
+          renderMatchDetail(null);
         }
       };
       reader.onerror = () => setFileStatus("答案导入失败：文件读取失败。", "bad");
       reader.readAsText(file, "utf-8");
     }
 
-    function applyAnswers(rows) {
+    function applyAnswers(rows, invalidRows = []) {
       let matched = 0;
       let unmatched = 0;
+      let duplicate = 0;
       let firstMatchedIndex = -1;
       const usedKeys = new Set();
+      const unmatchedRows = [];
+      const duplicateRows = [];
+      const matchedRows = [];
 
       rows.forEach((row) => {
-        const candidates = questions.filter((item) => {
+        const candidates = allQuestions.filter((item) => {
           const itemRef = parseQuestionRef(item.source);
           const rowRef = parseQuestionRef(row.source);
           const rowSource = normalizeText(rowRef.source || row.source);
@@ -1125,21 +1505,44 @@
           return row.source ? sourceMatches && (!row.id || idMatches) : idMatches;
         });
 
+        if (candidates.length === 0) {
+          unmatched += 1;
+          unmatchedRows.push(row);
+          return;
+        }
+
+        if (candidates.length > 1 && !row.source) {
+          duplicate += 1;
+          duplicateRows.push({ ...row, count: candidates.length });
+        }
+
         const target = candidates.find((item) => !usedKeys.has(questionKey(item)));
         if (target) {
           target.answer = row.answer;
           usedKeys.add(questionKey(target));
           matched += 1;
-          const targetIndex = questions.indexOf(target);
+          matchedRows.push(row);
+          const targetIndex = allQuestions.indexOf(target);
           if (firstMatchedIndex === -1 || targetIndex < firstMatchedIndex) {
             firstMatchedIndex = targetIndex;
           }
         } else {
           unmatched += 1;
+          unmatchedRows.push({ ...row, reason: "候选题已经被其他答案行使用" });
         }
       });
 
-      return { matched, unmatched, firstMatchedIndex };
+      return {
+        matched,
+        unmatched,
+        duplicate,
+        invalid: invalidRows.length,
+        matchedRows,
+        unmatchedRows,
+        duplicateRows,
+        invalidRows,
+        firstMatchedIndex
+      };
     }
 
     function normalizeText(value) {
@@ -1173,7 +1576,9 @@
           throw new Error("没有找到有效题目。");
         }
 
-        questions = result.valid;
+        allQuestions = result.valid;
+        questions = allQuestions;
+        state.mode = "sequence";
         resetWrongQuestions();
         resetPractice();
         const answerless = result.answerlessCount > 0 ? `，其中 ${result.answerlessCount} 题暂无答案` : "";
@@ -1198,7 +1603,9 @@
           if (result.valid.length === 0) {
             throw new Error("没有找到有效题目。");
           }
-          questions = result.valid;
+          allQuestions = result.valid;
+          questions = allQuestions;
+          state.mode = "sequence";
           resetWrongQuestions();
           resetPractice();
           const skipped = result.invalidCount > 0 ? `，跳过 ${result.invalidCount} 道格式不完整题目` : "";
@@ -1245,6 +1652,10 @@
     jumpInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") jumpToQuestion();
     });
+    sequenceModeBtn.addEventListener("click", startSequencePractice);
+    randomModeBtn.addEventListener("click", startRandomPractice);
+    wrongModeBtn.addEventListener("click", startWrongPractice);
+    todoModeBtn.addEventListener("click", startTodoPractice);
     clearWrongBtn.addEventListener("click", clearWrongQuestions);
     fileInput.addEventListener("change", importQuestions);
     wordInput.addEventListener("change", importWord);
@@ -1264,6 +1675,12 @@
       event.preventDefault();
       importToolbar.classList.remove("dragging");
       importQuestionFile(event.dataTransfer.files[0]);
+    });
+    window.addEventListener("beforeunload", () => {
+      if (state.saveWrongTimer) {
+        clearTimeout(state.saveWrongTimer);
+        saveWrongMap();
+      }
     });
 
     renderQuestion();

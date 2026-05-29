@@ -1,0 +1,222 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+微信PC群聊记录抓取器
+使用 uiautomation 操控微信窗口，搜索指定群聊并获取历史消息。
+用法: python wechat_ui_scraper.py <群名> <输出路径>
+依赖: pip install uiautomation
+"""
+
+import uiautomation as auto
+import time
+import sys
+import os
+
+
+def find_list_control_with_most_items(parent, max_depth=3):
+    """在父控件树下查找包含子项最多的 ListControl（用于定位聊天消息列表）"""
+    best = None
+    best_count = 0
+    # 递归查找，但限制深度以防性能问题
+    def walk(control, depth):
+        nonlocal best, best_count
+        if depth > max_depth:
+            return
+        if control.ControlTypeName == 'ListControl':
+            try:
+                count = len(control.GetChildren())
+            except:
+                count = 0
+            if count > best_count:
+                best = control
+                best_count = count
+        for child in control.GetChildren():
+            walk(child, depth + 1)
+
+    walk(parent, 0)
+    return best
+
+
+def scroll_to_top_and_collect(chat_list, max_scrolls=300, scroll_step=3):
+    """向上滚动聊天列表，加载全部历史消息，返回去重后的消息文本列表"""
+    collected = set()
+    all_messages = []
+    no_new_count = 0
+
+    # 尝试点击列表以确保焦点
+    try:
+        chat_list.Click()
+    except:
+        pass
+    time.sleep(0.5)
+
+    for i in range(max_scrolls):
+        # 获取当前可见的消息项
+        try:
+            items = chat_list.GetChildren()
+        except:
+            items = []
+
+        batch_new = False
+        for item in items:
+            try:
+                # 尽力提取文本：先取 Name 属性，若为空则遍历子控件拼接
+                text = item.Name.strip()
+                if not text:
+                    # 拼接所有子控件的文本
+                    parts = []
+                    for child in item.GetChildren():
+                        name = child.Name
+                        if name:
+                            parts.append(name)
+                    text = ' '.join(parts).strip()
+                if text and text not in collected:
+                    collected.add(text)
+                    all_messages.append(text)
+                    batch_new = True
+            except:
+                continue
+
+        if batch_new:
+            no_new_count = 0
+        else:
+            no_new_count += 1
+            if no_new_count >= 5:  # 连续多次没有新消息，认为已到顶部
+                break
+
+        # 向上滚动加载更早的消息
+        try:
+            chat_list.WheelUp(scroll_step)
+        except:
+            # 备用：发送 PageUp 按键
+            try:
+                chat_list.SendKeys('{PageUp}')
+            except:
+                pass
+        time.sleep(0.8)  # 等待加载
+
+    return all_messages
+
+
+def main():
+    if len(sys.argv) != 3:
+        print("用法: python wechat_ui_scraper.py <群名> <输出路径>")
+        sys.exit(1)
+
+    group_name = sys.argv[1]
+    output_path = sys.argv[2]
+
+    print(f"正在搜索微信群: {group_name}")
+
+    # 1. 查找微信主窗口
+    wechat = auto.WindowControl(Name='微信', ClassName='WeChatMainWndForPC')
+    if not wechat.Exists(3, 1):
+        # 某些版本 ClassName 可能不同，尝试只用标题找
+        wechat = auto.WindowControl(Name='微信')
+        if not wechat.Exists(3, 1):
+            print("未找到微信窗口，请确保微信已启动并登录。")
+            sys.exit(1)
+
+    wechat.SetActive()
+    time.sleep(0.5)
+
+    # 2. 激活 Ctrl+F 搜索功能
+    wechat.SendKeys('{Ctrl}f')
+    time.sleep(1)
+
+    # 3. 找到搜索输入框，输入群名
+    #    微信搜索框可能是一个 EditControl，通常 Name 为 "搜索"
+    search_edit = wechat.EditControl(Name='搜索')
+    if not search_edit.Exists(2, 0.5):
+        # 备用：直接找所有 Edit 控件中可用的（可能第一个就是）
+        search_edit = wechat.EditControl()
+    if not search_edit.Exists():
+        print("未能找到搜索输入框。")
+        sys.exit(1)
+
+    search_edit.Click()
+    time.sleep(0.3)
+    search_edit.SendKeys('{Ctrl}a{Delete}')   # 清空原有内容
+    search_edit.SendKeys(group_name)
+    time.sleep(1.5)  # 等待搜索结果出现
+
+    # 4. 在搜索结果列表中找到目标群聊
+    #    搜索结果通常位于一个 ListControl 中，尝试多种方式定位
+    result_list = None
+    for control in wechat.GetChildren():
+        if control.ControlTypeName == 'ListControl':
+            result_list = control
+            break
+    if not result_list:
+        # 没用，再试着用任意 ListControl
+        result_list = wechat.ListControl()
+    if not result_list or not result_list.Exists():
+        print("未找到搜索结果列表。")
+        sys.exit(1)
+
+    # 遍历列表项，匹配群名
+    found_item = None
+    for item in result_list.GetChildren():
+        try:
+            name = item.Name
+        except:
+            name = ''
+        if group_name in name:
+            found_item = item
+            break
+
+    if not found_item:
+        print(f"在搜索结果中未找到群聊: {group_name}")
+        sys.exit(1)
+
+    print("找到群聊，正在打开...")
+    found_item.Click()
+    time.sleep(2)  # 等待聊天窗口加载
+
+    # 5. 定位聊天消息区域
+    #    群聊窗口可能独立（Name 含群名），也可能嵌入主窗口
+    chat_window = auto.WindowControl(Name=group_name)
+    if chat_window.Exists(2, 0.5):
+        # 独立窗口模式
+        print("检测到独立群聊窗口。")
+        chat_list = find_list_control_with_most_items(chat_window)
+    else:
+        # 嵌入模式，在主微信窗口内查找消息列表
+        print("群聊嵌入主窗口，正在定位消息列表...")
+        # 尝试找到右侧聊天区域（通常有很多子项的 ListControl）
+        chat_list = find_list_control_with_most_items(wechat)
+
+    if not chat_list:
+        print("未能定位到消息列表，尝试使用主窗口内所有 ListControl ...")
+        # 最后备选：获取主窗口所有 ListControl，选子项最多的
+        all_lists = []
+        def collect_lists(ctrl):
+            if ctrl.ControlTypeName == 'ListControl':
+                all_lists.append(ctrl)
+            for c in ctrl.GetChildren():
+                collect_lists(c)
+        collect_lists(wechat)
+        if all_lists:
+            chat_list = max(all_lists, key=lambda x: len(x.GetChildren()) if x.GetChildren() else 0)
+        else:
+            print("无法找到任何列表控件，退出。")
+            sys.exit(1)
+
+    print("开始加载并收集历史消息...")
+
+    # 6. 滚动加载所有消息并收集
+    messages = scroll_to_top_and_collect(chat_list)
+
+    # 7. 保存到文件
+    try:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            for msg in messages:
+                f.write(msg + '\n')
+        print(f"完成！共收集 {len(messages)} 条消息，已保存至: {output_path}")
+    except Exception as e:
+        print(f"写入文件失败: {e}")
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
