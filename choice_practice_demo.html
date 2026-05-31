@@ -1386,7 +1386,8 @@
 
     function parseQuestionRef(value) {
       const text = normalizeText(value);
-      const composite = text.match(/^(\d{2,3}\s*[-－]\s*\d)\s*[-－]\s*(\d{1,4})$/);
+      const sourcePattern = String.raw`\d{2,3}\s*[-－]\s*\d[a-zA-Z]?`;
+      const composite = text.match(new RegExp(`^(${sourcePattern})\\s*[-－]\\s*(\\d{1,4})$`));
       if (composite) {
         return {
           source: composite[1].replace(/\s+/g, "").replace("－", "-"),
@@ -1394,7 +1395,7 @@
         };
       }
 
-      const sourceQuestion = text.match(/(\d{2,3}\s*[-－]\s*\d).*?(\d{1,4})\s*[题題]?$/);
+      const sourceQuestion = text.match(new RegExp(`(${sourcePattern}).*?(\\d{1,4})\\s*[题題]?$`));
       if (sourceQuestion) {
         return {
           source: sourceQuestion[1].replace(/\s+/g, "").replace("－", "-"),
@@ -1440,7 +1441,7 @@
         `第 ${row.lineNumber} 行：${escapeHtml(row.source || row.id || row.raw)}，答案 ${escapeHtml(row.answer)}`
       );
       appendExamples("重复候选示例", result.duplicateRows, (row) =>
-        `第 ${row.lineNumber} 行：${escapeHtml(row.source || row.id || row.raw)} 找到 ${row.count} 道候选题`
+        `第 ${row.lineNumber} 行：${escapeHtml(row.source || row.id || row.raw)} 找到 ${row.count} 道候选题${row.candidates ? `：${escapeHtml(row.candidates.join("；"))}` : ""}`
       );
       appendExamples("格式错误示例", result.invalidRows, (row) =>
         `第 ${row.lineNumber} 行：${escapeHtml(row.reason)}，${escapeHtml(row.raw)}`
@@ -1500,7 +1501,7 @@
           const rowRef = parseQuestionRef(row.source);
           const rowSource = normalizeText(rowRef.source || row.source);
           const itemSource = normalizeText(itemRef.source || item.source);
-          const sourceMatches = rowSource && (itemSource === rowSource || normalizeText(item.source).includes(rowSource));
+          const sourceMatches = rowSource && itemSource === rowSource;
           const idMatches = row.id && String(item.id) === String(row.id);
           return row.source ? sourceMatches && (!row.id || idMatches) : idMatches;
         });
@@ -1511,24 +1512,31 @@
           return;
         }
 
-        if (candidates.length > 1 && !row.source) {
+        if (candidates.length > 1) {
           duplicate += 1;
-          duplicateRows.push({ ...row, count: candidates.length });
+          duplicateRows.push({
+            ...row,
+            count: candidates.length,
+            candidates: candidates.slice(0, 5).map((item) => `${item.source || "无来源"} 第 ${item.id} 题`)
+          });
+          return;
         }
 
-        const target = candidates.find((item) => !usedKeys.has(questionKey(item)));
-        if (target) {
-          target.answer = row.answer;
-          usedKeys.add(questionKey(target));
-          matched += 1;
-          matchedRows.push(row);
-          const targetIndex = allQuestions.indexOf(target);
-          if (firstMatchedIndex === -1 || targetIndex < firstMatchedIndex) {
-            firstMatchedIndex = targetIndex;
-          }
-        } else {
-          unmatched += 1;
-          unmatchedRows.push({ ...row, reason: "候选题已经被其他答案行使用" });
+        const target = candidates[0];
+        const targetKey = questionKey(target);
+        if (usedKeys.has(targetKey)) {
+          duplicate += 1;
+          duplicateRows.push({ ...row, count: 1, candidates: [`${target.source || "无来源"} 第 ${target.id} 题已被其他答案行使用`] });
+          return;
+        }
+
+        target.answer = row.answer;
+        usedKeys.add(targetKey);
+        matched += 1;
+        matchedRows.push(row);
+        const targetIndex = allQuestions.indexOf(target);
+        if (firstMatchedIndex === -1 || targetIndex < firstMatchedIndex) {
+          firstMatchedIndex = targetIndex;
         }
       });
 
